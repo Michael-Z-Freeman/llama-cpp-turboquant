@@ -10,6 +10,12 @@
 ✅ Turbo4’s earlier garbage-output case is currently non-reproducible on this branch
 
 Still early: this is based on limited prompt/model testing and needs broader regression coverage before calling it fully settled.  
+
+Prompt examples tested so far:
+- `Hello`
+- `Write one short paragraph explaining what a hash table is.`
+- `Write a compact explanation of why radix sort is O(nk) and when it can beat comparison sort.`
+
 #LLM #ROCm #CUDA #AMD #llamacpp #TurboQuant
 
 ---
