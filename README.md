@@ -32,9 +32,9 @@ Hello
 Write one short paragraph explaining what a hash table is.
 ```
 **Response**
-```text
+`text
 ", a hash table is a data structure that implements an associative array, a structure that can map keys to values. A hash table uses a hash function to compute an index into an array of buckets or slots, from which the desired value can be found. The hash function is designed to minimize the number of collisions, which occur when two keys hash to the same index. In an ideal hash table, the hash function would assign each key to a unique bucket, but in practice,"
-```
+`
 
 **Prompt**
 ```text
