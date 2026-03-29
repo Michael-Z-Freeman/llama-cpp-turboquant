@@ -11,6 +11,22 @@
 
 Still early: this is based on limited prompt/model testing and needs broader regression coverage before calling it fully settled.  
 
+Hardware / memory / speed snapshot (current test rig):
+
+- GPU: `AMD Radeon RX 9060 XT (gfx1200)`, 16,304 MiB VRAM
+- Model: `qwen2.5-coder-14b.gguf`
+- Context window tested: `--ctx-size 65536`
+
+| KV cache mode | Context memory (MiB) | Generation speed (t/s) | Tokens/min |
+|---|---:|---:|---:|
+| f16 | 8448 | 13.0 | 780 |
+| turbo3 | 2688 | 29.2 | 1752 |
+| turbo4 | 3264 | 26.5 | 1590 |
+
+Context memory reduction vs f16:
+- turbo3: `-5760 MiB` (~68% less)
+- turbo4: `-5184 MiB` (~61% less)
+
 Prompt examples tested so far:
 - `Hello`
 - `Write one short paragraph explaining what a hash table is.`
