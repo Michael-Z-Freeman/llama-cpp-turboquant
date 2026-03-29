@@ -1,8 +1,24 @@
-# llama.cpp
+# Initial working Turbo Quant port from Apple Metal shaders to AMD. See actual prompt tests below but more extensive testing needed !
 
-## Fork update for TurboQuant port from Apple Metal shaders only to AMD
+## 🚀 Rational
 
-🚀 Quick update on TurboQuant in this fork: we now have a working HIP/CUDA path for the core turbo cache types, and recent smoke tests on AMD are looking promising.
+After being told that I will never be able to run a local coding model on my 16GB GPU because "10,000 GPU data center will always win" I had a "hold my beer" moment 🤣
+
+![anw9az](https://github.com/user-attachments/assets/c823185e-7fdc-4741-b9a7-0a8b7ba5455d)
+
+This endeavour may fail. But that's OK because I need to find out what useful tasks _can_ be run on a small local system. Even if the big data center wins or I need to get a much bigger GPU there are other smaller tasks that can work (like the web search agent).
+
+## 🚀 History
+
+So after testing for weeks I realised that my 16GB was not enough to get the minimal required context window of 64k. I was going to leave at that and settle for running small models for various side tasks (in fact I already have an effective AI web search agent working). But then Turbo Quant was announced and my interest reignited.
+
+After a lot of work following what Claude was doing I started getting something. BTW I code with the requirement that the coding agent must ask me first before making a change. This is how you learn. Claude seemed to be going round in circles so I switched to GPT-5.3-Codex and it cracked it ! Initial testing looks promising but I have not done major code tests yet.
+
+## 🚀 Conclusion
+
+Even with Turbo Quant it may be the case the 16GB is simply not enough for production coding of full applications. It's also the case that there can be a major problem with tool calling with local models. I suspect that this is because the whole tool calling paradigm came out of the big data centers in the first place. It's never been fully fine tuned or completely re-engineered for smaller systems.
+
+## 🚀 Development breakthroughs
 
 ✅ Added backend support for TURBO3/TURBO4 in key CUDA/HIP paths (`SET_ROWS`, FlashAttention VEC wiring, `TURBO_WHT` op dispatch)  
 ✅ Fixed several stability issues discovered during bring-up (kernel routing and fallback crashes)  
