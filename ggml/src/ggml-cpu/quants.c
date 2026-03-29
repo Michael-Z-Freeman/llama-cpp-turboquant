@@ -1231,3 +1231,15 @@ void quantize_row_iq4_xs(const float * GGML_RESTRICT x, void * GGML_RESTRICT y, 
     assert(k % QK_K == 0);
     quantize_iq4_xs(x, y, 1, k, NULL);
 }
+
+void quantize_row_turbo3_0(const float * GGML_RESTRICT x, void * GGML_RESTRICT y, int64_t k) {
+    assert(k % QK_TURBO3 == 0);
+    block_turbo3_0 * GGML_RESTRICT dst = y;
+    quantize_row_turbo3_0_ref(x, dst, k);
+}
+
+void quantize_row_turbo4_0(const float * GGML_RESTRICT x, void * GGML_RESTRICT y, int64_t k) {
+    assert(k % QK_TURBO4 == 0);
+    block_turbo4_0 * GGML_RESTRICT dst = y;
+    quantize_row_turbo4_0_ref(x, dst, k);
+}

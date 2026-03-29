@@ -186,6 +186,94 @@ static __device__ void quantize_f32_iq4_nl_block(const float * __restrict__ x, b
     y->d = sumq2 > 0 ? sumqx/sumq2 : d;
 }
 
+// TurboQuant 3-bit: pure PolarQuant, no QJL (block size 32).
+// Input x[] is already WHT-rotated by the preceding TURBO_WHT graph op.
+// Dequant: val = CENTROIDS_3BIT[idx] * norm
+static __device__ void quantize_f32_turbo3_0_block(const float * __restrict__ x, block_turbo3_0 * __restrict__ y) {
+    static constexpr float CENTROIDS[8] = {
+        -0.190685f, -0.117832f, -0.065717f, -0.021460f,
+         0.021460f,  0.065717f,  0.117832f,  0.190685f
+    };
+
+    // L2 norm of the 32-element block
+    float norm_sq = 0.0f;
+    for (int i = 0; i < QK_TURBO3; ++i) {
+        norm_sq += x[i] * x[i];
+    }
+    const float norm     = sqrtf(norm_sq);
+    const float inv_norm = (norm > 1e-10f) ? (1.0f / norm) : 0.0f;
+
+    y->norm = __float2half(norm);
+
+    // Zero packed arrays
+    for (int i = 0; i < QK_TURBO3 / 4; ++i) { y->qs[i]    = 0; }
+    for (int i = 0; i < QK_TURBO3 / 8; ++i) { y->signs[i] = 0; }
+
+    for (int i = 0; i < QK_TURBO3; ++i) {
+        const float v = x[i] * inv_norm;
+
+        // Nearest 3-bit centroid (8 levels, Lloyd-Max for N(0, 1/128))
+        int idx;
+        if      (v < -0.154259f) { idx = 0; }
+        else if (v < -0.091775f) { idx = 1; }
+        else if (v < -0.043589f) { idx = 2; }
+        else if (v <  0.000000f) { idx = 3; }
+        else if (v <  0.043589f) { idx = 4; }
+        else if (v <  0.091775f) { idx = 5; }
+        else if (v <  0.154259f) { idx = 6; }
+        else                     { idx = 7; }
+
+        (void)CENTROIDS; // used only at dequant time
+        // Lower 2 bits → qs, upper 1 bit → signs
+        y->qs[i / 4]    |= (uint8_t)((idx & 0x3) << ((i % 4) * 2));
+        y->signs[i / 8] |= (uint8_t)(((idx >> 2) & 0x1) << (i % 8));
+    }
+}
+
+// TurboQuant 4-bit: 3-bit PolarQuant + 1-bit QJL sign (block size 128).
+// Input x[] is already WHT-rotated. QJL residual correction is omitted in
+// this first implementation (rnorm=0, signs=0). The PolarQuant term alone
+// gives ~3.5-bit quality which is sufficient to unblock testing.
+static __device__ void quantize_f32_turbo4_0_block(const float * __restrict__ x, block_turbo4_0 * __restrict__ y) {
+    // L2 norm of all 128 elements
+    float norm_sq = 0.0f;
+    for (int i = 0; i < QK_TURBO4; ++i) {
+        norm_sq += x[i] * x[i];
+    }
+    const float norm     = sqrtf(norm_sq);
+    const float inv_norm = (norm > 1e-10f) ? (1.0f / norm) : 0.0f;
+
+    y->norm  = __float2half(norm);
+    y->rnorm = __float2half(0.0f);  // QJL not yet implemented
+
+    for (int i = 0; i < QK_TURBO4 * 3 / 8; ++i) { y->qs[i]    = 0; }
+    for (int i = 0; i < QK_TURBO4 / 8;     ++i) { y->signs[i] = 0; }
+
+    for (int i = 0; i < QK_TURBO4; ++i) {
+        const float v = x[i] * inv_norm;
+
+        int idx;
+        if      (v < -0.154259f) { idx = 0; }
+        else if (v < -0.091775f) { idx = 1; }
+        else if (v < -0.043589f) { idx = 2; }
+        else if (v <  0.000000f) { idx = 3; }
+        else if (v <  0.043589f) { idx = 4; }
+        else if (v <  0.091775f) { idx = 5; }
+        else if (v <  0.154259f) { idx = 6; }
+        else                     { idx = 7; }
+
+        // Pack 3-bit index: 8 indices per 3 bytes
+        const int bit_off  = i * 3;
+        const int byte_idx = bit_off / 8;
+        const int bit_pos  = bit_off % 8;
+        y->qs[byte_idx] |= (uint8_t)((idx & 0x7) << bit_pos);
+        if (bit_pos > 5 && byte_idx + 1 < QK_TURBO4 * 3 / 8) {
+            y->qs[byte_idx + 1] |= (uint8_t)((idx & 0x7) >> (8 - bit_pos));
+        }
+        // signs: QJL not yet implemented
+    }
+}
+
 // Wrapper functions for cpy.cu compatibility
 static __device__ void cpy_blck_f32_q4_0(const char * cxi, char * cdsti) {
     quantize_f32_q4_0_block((const float *)cxi, (block_q4_0 *)cdsti);

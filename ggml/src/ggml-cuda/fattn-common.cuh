@@ -577,6 +577,175 @@ static __device__ __forceinline__ void dequantize_V_q8_0(const void * __restrict
     }
 }
 
+// ---------------------------------------------------------------------------
+// TurboQuant 3-bit dequantize V (block size = QK_TURBO3 = 32).
+// val = CENTROIDS_3BIT[3bit_idx] * norm
+// ---------------------------------------------------------------------------
+template <typename T, int ne>
+static __device__ __forceinline__ void dequantize_V_turbo3_0(
+        const void * __restrict__ vx, void * __restrict__ dst, const int64_t i0) {
+    static constexpr float CENTROIDS[8] = {
+        -0.190685f, -0.117832f, -0.065717f, -0.021460f,
+         0.021460f,  0.065717f,  0.117832f,  0.190685f
+    };
+
+    const block_turbo3_0 * x = (const block_turbo3_0 *) vx;
+    static_assert(ne == 2 || ne == 4, "bad ne");
+
+#pragma unroll
+    for (int l = 0; l < ne; ++l) {
+        const int64_t elem = i0 + l;
+        const int64_t ib = elem / QK_TURBO3;
+        const int     j  = elem % QK_TURBO3;
+
+        const uint8_t low2 = (x[ib].qs[j / 4] >> ((j % 4) * 2)) & 0x3;
+        const uint8_t hi1  = (x[ib].signs[j / 8] >> (j % 8)) & 0x1;
+        const float   val  = CENTROIDS[low2 | (hi1 << 2)] * __half2float(x[ib].norm);
+
+        if constexpr (std::is_same_v<T, float>) {
+            ((float *) dst)[l] = val;
+        } else {
+            ((half *) dst)[l] = __float2half(val);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// TurboQuant 4-bit dequantize V (block size = QK_TURBO4 = 128).
+// QJL correction omitted (same as quantize side). Uses only PolarQuant term.
+// val = CENTROIDS_3BIT[3bit_idx] * norm
+// ---------------------------------------------------------------------------
+template <typename T, int ne>
+static __device__ __forceinline__ void dequantize_V_turbo4_0(
+        const void * __restrict__ vx, void * __restrict__ dst, const int64_t i0) {
+    static constexpr float CENTROIDS[8] = {
+        -0.190685f, -0.117832f, -0.065717f, -0.021460f,
+         0.021460f,  0.065717f,  0.117832f,  0.190685f
+    };
+
+    const block_turbo4_0 * x = (const block_turbo4_0 *) vx;
+    static_assert(ne == 2 || ne == 4, "bad ne");
+
+#pragma unroll
+    for (int l = 0; l < ne; ++l) {
+        const int64_t elem     = i0 + l;
+        const int64_t ib       = elem / QK_TURBO4;
+        const int     j        = elem % QK_TURBO4;
+        const int     bit_off  = j * 3;
+        const int     byte_idx = bit_off / 8;
+        const int     bit_pos  = bit_off % 8;
+
+        uint16_t raw = (uint16_t)x[ib].qs[byte_idx];
+        if (bit_pos > 5) {
+            raw |= (uint16_t)x[ib].qs[byte_idx + 1] << 8;
+        }
+        const uint8_t idx = (raw >> bit_pos) & 0x7;
+        const float   val = CENTROIDS[idx] * __half2float(x[ib].norm);
+
+        if constexpr (std::is_same_v<T, float>) {
+            ((float *) dst)[l] = val;
+        } else {
+            ((half *) dst)[l] = __float2half(val);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// TurboQuant 3-bit K · Q dot product for FlashAttention.
+// K is TURBO3_0 format; Q is q8_1 (quantized Q with scale).
+// Both K and Q are in the WHT-rotated domain (rotation applied by the graph).
+// Dot product: sum += CENTROIDS[k_idx] * k_norm * q_int8 * q_scale
+// ---------------------------------------------------------------------------
+template<int D, int nthreads>
+static __device__ __forceinline__ float vec_dot_fattn_vec_KQ_turbo3_0(
+        const char * __restrict__ K_c, const void * __restrict__ Q_v,
+        const int * __restrict__ Q_q8, const void * __restrict__ Q_ds_v) {
+
+    static constexpr float CENTROIDS[8] = {
+        -0.190685f, -0.117832f, -0.065717f, -0.021460f,
+         0.021460f,  0.065717f,  0.117832f,  0.190685f
+    };
+
+    const block_turbo3_0 * K_t3 = (const block_turbo3_0 *) K_c;
+    GGML_UNUSED(Q_v);
+
+    float sum = 0.0f;
+
+    // For D=128, nthreads=32: one iteration covering all 32 int32s (128 elements).
+    // For D=64,  nthreads=16: one iteration covering all 16 int32s (64 elements).
+#pragma unroll
+    for (int k_KQ_0 = 0; k_KQ_0 < D / (int)sizeof(int); k_KQ_0 += nthreads) {
+        const int k_KQ = k_KQ_0 + (nthreads == WARP_SIZE ? threadIdx.x : threadIdx.x % nthreads);
+
+        // This thread's 4 packed Q int8 values and their scale
+        const int    q_packed = Q_q8[k_KQ_0 / nthreads];
+        const float  Q_d      = ((const float2 *) Q_ds_v)[k_KQ_0 / nthreads].x;
+
+#pragma unroll
+        for (int l = 0; l < 4; ++l) {
+            const int     elem = k_KQ * 4 + l;
+            const int     ib   = elem / QK_TURBO3;
+            const int     j    = elem % QK_TURBO3;
+            const uint8_t low2 = (K_t3[ib].qs[j / 4] >> ((j % 4) * 2)) & 0x3;
+            const uint8_t hi1  = (K_t3[ib].signs[j / 8] >> (j % 8)) & 0x1;
+            const float   k_val = CENTROIDS[low2 | (hi1 << 2)] * __half2float(K_t3[ib].norm);
+            const float   q_val = ((const int8_t *) &q_packed)[l] * Q_d;
+            sum += k_val * q_val;
+        }
+    }
+
+    return sum;
+}
+
+// ---------------------------------------------------------------------------
+// TurboQuant 4-bit K · Q dot product. Same structure as turbo3_0 but with
+// 3-bit packed indices (QK_TURBO4=128, one block = full head).
+// ---------------------------------------------------------------------------
+template<int D, int nthreads>
+static __device__ __forceinline__ float vec_dot_fattn_vec_KQ_turbo4_0(
+        const char * __restrict__ K_c, const void * __restrict__ Q_v,
+        const int * __restrict__ Q_q8, const void * __restrict__ Q_ds_v) {
+
+    static constexpr float CENTROIDS[8] = {
+        -0.190685f, -0.117832f, -0.065717f, -0.021460f,
+         0.021460f,  0.065717f,  0.117832f,  0.190685f
+    };
+
+    const block_turbo4_0 * K_t4 = (const block_turbo4_0 *) K_c;
+    GGML_UNUSED(Q_v);
+
+    float sum = 0.0f;
+
+#pragma unroll
+    for (int k_KQ_0 = 0; k_KQ_0 < D / (int)sizeof(int); k_KQ_0 += nthreads) {
+        const int k_KQ = k_KQ_0 + (nthreads == WARP_SIZE ? threadIdx.x : threadIdx.x % nthreads);
+
+        const int   q_packed = Q_q8[k_KQ_0 / nthreads];
+        const float Q_d      = ((const float2 *) Q_ds_v)[k_KQ_0 / nthreads].x;
+
+#pragma unroll
+        for (int l = 0; l < 4; ++l) {
+            const int elem     = k_KQ * 4 + l;
+            const int ib       = elem / QK_TURBO4;
+            const int j        = elem % QK_TURBO4;
+            const int bit_off  = j * 3;
+            const int byte_idx = bit_off / 8;
+            const int bit_pos  = bit_off % 8;
+
+            uint16_t raw = (uint16_t)K_t4[ib].qs[byte_idx];
+            if (bit_pos > 5) {
+                raw |= (uint16_t)K_t4[ib].qs[byte_idx + 1] << 8;
+            }
+            const uint8_t idx   = (raw >> bit_pos) & 0x7;
+            const float   k_val = CENTROIDS[idx] * __half2float(K_t4[ib].norm);
+            const float   q_val = ((const int8_t *) &q_packed)[l] * Q_d;
+            sum += k_val * q_val;
+        }
+    }
+
+    return sum;
+}
+
 template <ggml_type type_K, int D, int nthreads>
 constexpr __device__ vec_dot_KQ_t get_vec_dot_KQ() {
     if constexpr (type_K == GGML_TYPE_F16) {
@@ -593,6 +762,10 @@ constexpr __device__ vec_dot_KQ_t get_vec_dot_KQ() {
         return vec_dot_fattn_vec_KQ_q8_0<D, nthreads>;
     } else if constexpr (type_K == GGML_TYPE_BF16) {
         return vec_dot_fattn_vec_KQ_bf16<D, nthreads>;
+    } else if constexpr (type_K == GGML_TYPE_TURBO3_0) {
+        return vec_dot_fattn_vec_KQ_turbo3_0<D, nthreads>;
+    } else if constexpr (type_K == GGML_TYPE_TURBO4_0) {
+        return vec_dot_fattn_vec_KQ_turbo4_0<D, nthreads>;
     } else {
         static_assert(type_K == -1, "bad type");
         return nullptr;
@@ -615,6 +788,10 @@ constexpr __device__ dequantize_V_t get_dequantize_V() {
         return dequantize_V_q8_0<T, ne>;
     } else if constexpr (type_V == GGML_TYPE_BF16) {
         return dequantize_V_bf16<float, ne>;
+    } else if constexpr (type_V == GGML_TYPE_TURBO3_0) {
+        return dequantize_V_turbo3_0<T, ne>;
+    } else if constexpr (type_V == GGML_TYPE_TURBO4_0) {
+        return dequantize_V_turbo4_0<T, ne>;
     } else {
         static_assert(type_V == -1, "bad type");
         return nullptr;

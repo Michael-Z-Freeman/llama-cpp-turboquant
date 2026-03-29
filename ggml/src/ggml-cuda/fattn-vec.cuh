@@ -257,17 +257,26 @@ static __global__ void flash_attn_ext_vec(
         for (int i_KQ_0 = 0; i_KQ_0 < nthreads_KQ; ++i_KQ_0) {
             const int i_KQ = threadIdx.y*WARP_SIZE + (nthreads_KQ == WARP_SIZE ? 0 : (threadIdx.x & ~(nthreads_KQ-1))) + i_KQ_0;
 
+            // Bounds check: k_VKQ_0 + i_KQ may exceed ne11 when ne11 is not a multiple of
+            // FATTN_KQ_STRIDE (e.g. TURBO types with short KV sequences). Guard K and mask
+            // accesses; set out-of-range scores to -inf so softmax assigns them zero weight.
+            const bool kv_valid = (k_VKQ_0 + i_KQ) < k_VKQ_max;
+
 #pragma unroll
             for (int j = 0; j < ncols; ++j) {
-                float sum = vec_dot_KQ(K + i_KQ*nb11, Q_reg[j], Q_i32[j], Q_ds[j]);
+                float sum = kv_valid ? vec_dot_KQ(K + i_KQ*nb11, Q_reg[j], Q_i32[j], Q_ds[j]) : 0.0f;
                 sum = warp_reduce_sum<nthreads_KQ>(sum);
 
-                if (use_logit_softcap) {
+                if (kv_valid && use_logit_softcap) {
                     sum = logit_softcap*tanhf(sum);
                 }
 
-                if (mask && (ncols == 1 || ic0 + j < int(ne01.z))) {
+                if (kv_valid && mask && (ncols == 1 || ic0 + j < int(ne01.z))) {
                     sum += slope*__half2float(maskh[j*ne11 + i_KQ]);
+                }
+
+                if (!kv_valid) {
+                    sum = -INFINITY;
                 }
 
                 KQ_max_new[j] = fmaxf(KQ_max_new[j], sum + FATTN_KQ_MAX_OFFSET);
@@ -566,14 +575,16 @@ void ggml_cuda_flash_attn_ext_vec_case(ggml_backend_cuda_context & ctx, ggml_ten
     template void ggml_cuda_flash_attn_ext_vec_case                         \
     <D, type_K, type_V>(ggml_backend_cuda_context & ctx, ggml_tensor * dst) \
 
-#define EXTERN_DECL_FATTN_VEC_CASES(D, type_K)             \
-    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_F16);  \
-    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_Q4_0); \
-    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_Q4_1); \
-    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_Q5_0); \
-    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_Q5_1); \
-    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_Q8_0); \
-    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_BF16); \
+#define EXTERN_DECL_FATTN_VEC_CASES(D, type_K)                  \
+    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_F16);       \
+    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_Q4_0);      \
+    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_Q4_1);      \
+    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_Q5_0);      \
+    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_Q5_1);      \
+    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_Q8_0);      \
+    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_BF16);      \
+    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_TURBO3_0);  \
+    extern DECL_FATTN_VEC_CASE(D, type_K, GGML_TYPE_TURBO4_0);  \
 
 EXTERN_DECL_FATTN_VEC_CASES( 64, GGML_TYPE_F16)
 EXTERN_DECL_FATTN_VEC_CASES( 64, GGML_TYPE_Q4_0)
@@ -598,3 +609,11 @@ EXTERN_DECL_FATTN_VEC_CASES(256, GGML_TYPE_Q5_0)
 EXTERN_DECL_FATTN_VEC_CASES(256, GGML_TYPE_Q5_1)
 EXTERN_DECL_FATTN_VEC_CASES(256, GGML_TYPE_Q8_0)
 EXTERN_DECL_FATTN_VEC_CASES(256, GGML_TYPE_BF16)
+
+EXTERN_DECL_FATTN_VEC_CASES( 64, GGML_TYPE_TURBO3_0)
+EXTERN_DECL_FATTN_VEC_CASES(128, GGML_TYPE_TURBO3_0)
+EXTERN_DECL_FATTN_VEC_CASES(256, GGML_TYPE_TURBO3_0)
+
+EXTERN_DECL_FATTN_VEC_CASES( 64, GGML_TYPE_TURBO4_0)
+EXTERN_DECL_FATTN_VEC_CASES(128, GGML_TYPE_TURBO4_0)
+EXTERN_DECL_FATTN_VEC_CASES(256, GGML_TYPE_TURBO4_0)

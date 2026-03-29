@@ -2052,20 +2052,43 @@ ggml_tensor * llm_graph_context::build_attn(
 
     const auto * mctx_cur = inp->mctx;
 
+    // Peek at the KV cache type to decide if TURBO WHT rotation is needed.
+    // get_k/get_v return a view of the cache buffer; calling them here before
+    // cpy_k/cpy_v is safe because graph node construction is order-independent
+    // from a scheduling perspective — data dependencies determine execution order.
+    ggml_tensor * k = mctx_cur->get_k(ctx0, il);
+    ggml_tensor * v = mctx_cur->get_v(ctx0, il);
+
     // store to KV cache
     {
         const auto & k_idxs = inp->get_k_idxs();
         const auto & v_idxs = inp->get_v_idxs();
 
-        ggml_build_forward_expand(gf, mctx_cur->cpy_k(ctx0, k_cur, k_idxs, il));
-        ggml_build_forward_expand(gf, mctx_cur->cpy_v(ctx0, v_cur, v_idxs, il));
+        // TurboQuant: K and V must be WHT-rotated before quantization.
+        // The CUDA set_rows kernel (quantize_f32_turbo3_0/4_0_block) expects
+        // pre-rotated input — it does NOT apply WHT internally (unlike Metal).
+        ggml_tensor * k_to_store = k_cur;
+        ggml_tensor * v_to_store = v_cur;
+        if (k->type == GGML_TYPE_TURBO3_0 || k->type == GGML_TYPE_TURBO4_0) {
+            if (k_to_store->ne[0] % 128 == 0) {
+                if (!ggml_is_contiguous(k_to_store)) { k_to_store = ggml_cont(ctx0, k_to_store); }
+                k_to_store = ggml_turbo_wht(ctx0, k_to_store, 0);
+            }
+        }
+        if (v->type == GGML_TYPE_TURBO3_0 || v->type == GGML_TYPE_TURBO4_0) {
+            if (v_to_store->ne[0] % 128 == 0) {
+                if (!ggml_is_contiguous(v_to_store)) { v_to_store = ggml_cont(ctx0, v_to_store); }
+                v_to_store = ggml_turbo_wht(ctx0, v_to_store, 0);
+            }
+        }
+
+        ggml_build_forward_expand(gf, mctx_cur->cpy_k(ctx0, k_to_store, k_idxs, il));
+        ggml_build_forward_expand(gf, mctx_cur->cpy_v(ctx0, v_to_store, v_idxs, il));
     }
 
     const auto & kq_mask = inp->get_kq_mask();
 
     ggml_tensor * q = q_cur;
-    ggml_tensor * k = mctx_cur->get_k(ctx0, il);
-    ggml_tensor * v = mctx_cur->get_v(ctx0, il);
 
     // TurboQuant pre-rotate-queries: O(d log d) WHT rotation via custom op
     // Q shape: (n_embd_head, n_head, n_tokens) — ne[0] divisible by 128
