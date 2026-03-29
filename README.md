@@ -1,6 +1,6 @@
 # llama.cpp
 
-## Fork update (TurboQuant HIP/CUDA)
+## Fork update for TurboQuant port from Apple Metal shaders only to AMD
 
 🚀 Quick update on TurboQuant in this fork: we now have a working HIP/CUDA path for the core turbo cache types, and recent smoke tests on AMD are looking promising.
 
