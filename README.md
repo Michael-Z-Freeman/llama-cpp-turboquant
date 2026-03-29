@@ -1,5 +1,19 @@
 # llama.cpp
 
+## Fork update (TurboQuant HIP/CUDA)
+
+🚀 Quick update on TurboQuant in this fork: we now have a working HIP/CUDA path for the core turbo cache types, and recent smoke tests on AMD are looking promising.
+
+✅ Added backend support for TURBO3/TURBO4 in key CUDA/HIP paths (`SET_ROWS`, FlashAttention VEC wiring, `TURBO_WHT` op dispatch)  
+✅ Fixed several stability issues discovered during bring-up (kernel routing and fallback crashes)  
+✅ Turbo3 is producing coherent outputs in current tests  
+✅ Turbo4’s earlier garbage-output case is currently non-reproducible on this branch
+
+Still early: this is based on limited prompt/model testing and needs broader regression coverage before calling it fully settled.  
+#LLM #ROCm #CUDA #AMD #llamacpp #TurboQuant
+
+---
+
 ![llama](https://user-images.githubusercontent.com/1991296/230134379-7181e485-c521-4d23-a0d6-f7b3b61ba524.png)
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
