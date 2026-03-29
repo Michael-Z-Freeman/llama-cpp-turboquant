@@ -2064,13 +2064,14 @@ ggml_tensor * llm_graph_context::build_attn(
         const auto & k_idxs = inp->get_k_idxs();
         const auto & v_idxs = inp->get_v_idxs();
 
-        // TurboQuant: K and V must be WHT-rotated before quantization.
-        // The CUDA set_rows kernel (quantize_f32_turbo3_0/4_0_block) expects
-        // pre-rotated input — it does NOT apply WHT internally (unlike Metal).
+        // TurboQuant rotation policy:
+        // - turbo3 currently uses explicit graph-side WHT rotation.
+        // - turbo4 currently stays in the non-WHT domain on HIP/CUDA.
+        // Keeping turbo4 unrotated restores coherent output (see branch history),
+        // and acts as a stable baseline while the turbo4 WHT-domain mismatch is
+        // investigated.
         ggml_tensor * k_to_store = k_cur;
         ggml_tensor * v_to_store = v_cur;
-        // Temporary isolation: keep WHT enabled for turbo3 only.
-        // This helps diagnose the remaining turbo4 garbage-output issue.
         if (k->type == GGML_TYPE_TURBO3_0) {
             if (k_to_store->ne[0] % 128 == 0) {
                 if (!ggml_is_contiguous(k_to_store)) { k_to_store = ggml_cont(ctx0, k_to_store); }
@@ -2092,9 +2093,8 @@ ggml_tensor * llm_graph_context::build_attn(
 
     ggml_tensor * q = q_cur;
 
-    // TurboQuant pre-rotate-queries: O(d log d) WHT rotation via custom op
-    // Q shape: (n_embd_head, n_head, n_tokens) — ne[0] divisible by 128
-    // No reshape/cont/matmul needed — the custom kernel handles groups internally
+    // Turbo3 pre-rotate queries: O(d log d) WHT via custom op.
+    // Turbo4 intentionally skips this for now (see rotation policy above).
     if (k->type == GGML_TYPE_TURBO3_0) {
         if (q->ne[0] % 128 == 0) {
             if (!ggml_is_contiguous(q)) { q = ggml_cont(ctx0, q); }
@@ -2105,7 +2105,8 @@ ggml_tensor * llm_graph_context::build_attn(
     ggml_tensor * cur = build_attn_mha(q, k, v, kq_b, kq_mask, sinks, v_mla, kq_scale, il);
     cb(cur, "kqv_out", il);
 
-    // TurboQuant V un-rotation: O(d log d) inverse WHT on attention output
+    // Turbo3 output un-rotation: inverse WHT on attention output.
+    // Turbo4 intentionally skips this for now (see rotation policy above).
     if (v->type == GGML_TYPE_TURBO3_0) {
         if (cur->ne[0] % 128 == 0) {
             if (!ggml_is_contiguous(cur)) { cur = ggml_cont(ctx0, cur); }
