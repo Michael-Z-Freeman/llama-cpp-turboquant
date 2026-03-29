@@ -19,7 +19,7 @@ Prompt examples tested so far:
 Full output text captured from those prompts:
 
 - Prompt: `Hello`  
-  Output: `"Hello! How can I assist you today?"`
+  Output: ` "Hello! How can I assist you today?"`
 
 - Prompt: `Write one short paragraph explaining what a hash table is.`  
   Output: `", a hash table is a data structure that implements an associative array, a structure that can map keys to values. A hash table uses a hash function to compute an index into an array of buckets or slots, from which the desired value can be found. The hash function is designed to minimize the number of collisions, which occur when two keys hash to the same index. In an ideal hash table, the hash function would assign each key to a unique bucket, but in practice,"`
@@ -29,7 +29,22 @@ Full output text captured from those prompts:
 
 ### Why Radix Sort is \(O(nk)\):
 
-1. **Digit Processing`
+1. **Digit Processing**: Radix sort processes each digit of the numbers. If there are \(k\) digits in the largest number, it will need to process each digit \(k\) times.
+2. **Stability and Linearity**: Each pass over the digits involves a stable sort (like counting sort), which processes each of the \(n\) elements in constant time \(O(n)\).
+
+Thus, the overall complexity is \(O(nk)\) because each of the \(k\) passes over the digits involves a linear operation over \(n\) elements.
+
+### When Radix Sort Can Beat Comparison Sorts:
+
+1. **Large Integer Datasets**: Radix sort is particularly efficient when dealing with large datasets of integers, especially when the number of digits \(k\) is much smaller than the number of elements \(n\). In such cases, the \(O(nk)\) complexity can be significantly smaller than the \(O(n \log n)\) complexity of comparison-based sorts like quicksort or mergesort.
+
+2. **Small \(k\)**: When the number of digits \(k\) is small relative to \(n\), the \(O(nk)\) complexity of radix sort can be more favorable than the \(O(n \log n)\) complexity of comparison sorts.
+
+3. **Non-Comparison Sorts**: Radix sort is a non-comparison sort, which means it does not rely on comparing elements to determine order. This can be advantageous in scenarios where comparison operations are costly or when the data is not naturally ordered in a way that comparison sorts can exploit.
+
+4. **Parallelism**: Radix sort can be easily parallelized because each digit can be processed independently, allowing for efficient parallel execution on multi-core systems.
+
+In summary, radix sort can outperform comparison-based sorts when the number of digits \(k\) is small relative to \(n\), or when dealing with large datasets of integers where the overhead of comparison operations is significant.`
 
 #LLM #ROCm #CUDA #AMD #llamacpp #TurboQuant
 
