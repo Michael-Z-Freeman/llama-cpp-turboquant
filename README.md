@@ -4,7 +4,7 @@
 
 After being told that I will never be able to run a local coding model on my 16GB GPU because "10,000 GPU data center will always win" I had a "hold my beer" moment 🤣
 
-![anw9az](https://github.com/user-attachments/assets/c823185e-7fdc-4741-b9a7-0a8b7ba5455d)
+<img src="https://github.com/user-attachments/assets/c823185e-7fdc-4741-b9a7-0a8b7ba5455d" alt="anw9az" width="400">
 
 This endeavour may fail. But that's OK because I need to find out what useful tasks _can_ be run on a small local system. Even if the big data center wins or I need to get a much bigger GPU there are other smaller tasks that can work (like the web search agent).
 
