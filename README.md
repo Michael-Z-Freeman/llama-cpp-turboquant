@@ -16,16 +16,33 @@ Prompt examples tested so far:
 - `Write one short paragraph explaining what a hash table is.`
 - `Write a compact explanation of why radix sort is O(nk) and when it can beat comparison sort.`
 
-Full output text captured from those prompts:
+Captured examples (chat-style):
 
-- Prompt: `Hello`  
-  Output: ` "Hello! How can I assist you today?"`
+**Prompt**
+```text
+Hello
+```
+**Response**
+```text
+"Hello! How can I assist you today?"
+```
 
-- Prompt: `Write one short paragraph explaining what a hash table is.`  
-  Output: `", a hash table is a data structure that implements an associative array, a structure that can map keys to values. A hash table uses a hash function to compute an index into an array of buckets or slots, from which the desired value can be found. The hash function is designed to minimize the number of collisions, which occur when two keys hash to the same index. In an ideal hash table, the hash function would assign each key to a unique bucket, but in practice,"`
+**Prompt**
+```text
+Write one short paragraph explaining what a hash table is.
+```
+**Response**
+```text
+", a hash table is a data structure that implements an associative array, a structure that can map keys to values. A hash table uses a hash function to compute an index into an array of buckets or slots, from which the desired value can be found. The hash function is designed to minimize the number of collisions, which occur when two keys hash to the same index. In an ideal hash table, the hash function would assign each key to a unique bucket, but in practice,"
+```
 
-- Prompt: `Write a compact explanation of why radix sort is O(nk) and when it can beat comparison sort.`  
-  Output: `"Radix sort is a non-comparison-based sorting algorithm that processes integers digit by digit, from the least significant to the most significant. It is often used to sort large datasets of integers efficiently. The time complexity of radix sort is \(O(nk)\), where \(n\) is the number of elements to be sorted, and \(k\) is the number of digits in the largest element."`
+**Prompt**
+```text
+Write a compact explanation of why radix sort is O(nk) and when it can beat comparison sort.
+```
+**Response**
+```text
+"Radix sort is a non-comparison-based sorting algorithm that processes integers digit by digit, from the least significant to the most significant. It is often used to sort large datasets of integers efficiently. The time complexity of radix sort is \(O(nk)\), where \(n\) is the number of elements to be sorted, and \(k\) is the number of digits in the largest element."
 
 ### Why Radix Sort is \(O(nk)\):
 
@@ -44,8 +61,8 @@ Thus, the overall complexity is \(O(nk)\) because each of the \(k\) passes over 
 
 4. **Parallelism**: Radix sort can be easily parallelized because each digit can be processed independently, allowing for efficient parallel execution on multi-core systems.
 
-In summary, radix sort can outperform comparison-based sorts when the number of digits \(k\) is small relative to \(n\), or when dealing with large datasets of integers where the overhead of comparison operations is significant.`
-
+In summary, radix sort can outperform comparison-based sorts when the number of digits \(k\) is small relative to \(n\), or when dealing with large datasets of integers where the overhead of comparison operations is significant."
+```
 #LLM #ROCm #CUDA #AMD #llamacpp #TurboQuant
 
 ---
