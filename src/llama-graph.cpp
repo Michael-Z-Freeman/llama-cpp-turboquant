@@ -10,6 +10,7 @@
 #include "llama-memory-hybrid-iswa.h"
 #include "llama-memory-recurrent.h"
 
+#include <cstdlib>
 #include <cassert>
 #include <cmath>
 #include <cstring>
@@ -18,6 +19,11 @@
 #include <unordered_set>
 
 // dedup helpers
+
+static bool env_flag_enabled(const char * name, bool def = false) {
+    const char * v = getenv(name);
+    return v ? (atoi(v) != 0) : def;
+}
 
 static ggml_tensor * build_kq_mask(
         ggml_context * ctx,
@@ -2065,20 +2071,27 @@ ggml_tensor * llm_graph_context::build_attn(
         const auto & v_idxs = inp->get_v_idxs();
 
         // TurboQuant rotation policy:
-        // - turbo3 currently uses explicit graph-side WHT rotation.
-        // - turbo4 currently stays in the non-WHT domain on HIP/CUDA.
-        // Keeping turbo4 unrotated restores coherent output (see branch history),
-        // and acts as a stable baseline while the turbo4 WHT-domain mismatch is
-        // investigated.
+        // - turbo3 uses explicit graph-side WHT rotation by default.
+        // - turbo4 defaults to non-WHT domain on HIP/CUDA (stabilized path).
+        // For turbo4 debugging, WHT stages can be enabled independently:
+        //   LLAMA_TURBO4_WHT_STORE_KV=1  (K/V pre-rotation before cpy)
+        //   LLAMA_TURBO4_WHT_QUERY=1     (Q pre-rotation)
+        //   LLAMA_TURBO4_WHT_OUTPUT=1    (attention output inverse WHT)
+        //   LLAMA_TURBO4_WHT_ALL=1       (enables all three)
+        const bool turbo4_wht_all      = env_flag_enabled("LLAMA_TURBO4_WHT_ALL");
+        const bool turbo4_wht_store_kv = turbo4_wht_all || env_flag_enabled("LLAMA_TURBO4_WHT_STORE_KV");
+        const bool turbo4_wht_query    = turbo4_wht_all || env_flag_enabled("LLAMA_TURBO4_WHT_QUERY");
+        const bool turbo4_wht_output   = turbo4_wht_all || env_flag_enabled("LLAMA_TURBO4_WHT_OUTPUT");
+
         ggml_tensor * k_to_store = k_cur;
         ggml_tensor * v_to_store = v_cur;
-        if (k->type == GGML_TYPE_TURBO3_0) {
+        if (k->type == GGML_TYPE_TURBO3_0 || (k->type == GGML_TYPE_TURBO4_0 && turbo4_wht_store_kv)) {
             if (k_to_store->ne[0] % 128 == 0) {
                 if (!ggml_is_contiguous(k_to_store)) { k_to_store = ggml_cont(ctx0, k_to_store); }
                 k_to_store = ggml_turbo_wht(ctx0, k_to_store, 0);
             }
         }
-        if (v->type == GGML_TYPE_TURBO3_0) {
+        if (v->type == GGML_TYPE_TURBO3_0 || (v->type == GGML_TYPE_TURBO4_0 && turbo4_wht_store_kv)) {
             if (v_to_store->ne[0] % 128 == 0) {
                 if (!ggml_is_contiguous(v_to_store)) { v_to_store = ggml_cont(ctx0, v_to_store); }
                 v_to_store = ggml_turbo_wht(ctx0, v_to_store, 0);
@@ -2095,7 +2108,11 @@ ggml_tensor * llm_graph_context::build_attn(
 
     // Turbo3 pre-rotate queries: O(d log d) WHT via custom op.
     // Turbo4 intentionally skips this for now (see rotation policy above).
-    if (k->type == GGML_TYPE_TURBO3_0) {
+    const bool turbo4_wht_all    = env_flag_enabled("LLAMA_TURBO4_WHT_ALL");
+    const bool turbo4_wht_query  = turbo4_wht_all || env_flag_enabled("LLAMA_TURBO4_WHT_QUERY");
+    const bool turbo4_wht_output = turbo4_wht_all || env_flag_enabled("LLAMA_TURBO4_WHT_OUTPUT");
+
+    if (k->type == GGML_TYPE_TURBO3_0 || (k->type == GGML_TYPE_TURBO4_0 && turbo4_wht_query)) {
         if (q->ne[0] % 128 == 0) {
             if (!ggml_is_contiguous(q)) { q = ggml_cont(ctx0, q); }
             q = ggml_turbo_wht(ctx0, q, 0);  // 0 = forward
@@ -2107,7 +2124,7 @@ ggml_tensor * llm_graph_context::build_attn(
 
     // Turbo3 output un-rotation: inverse WHT on attention output.
     // Turbo4 intentionally skips this for now (see rotation policy above).
-    if (v->type == GGML_TYPE_TURBO3_0) {
+    if (v->type == GGML_TYPE_TURBO3_0 || (v->type == GGML_TYPE_TURBO4_0 && turbo4_wht_output)) {
         if (cur->ne[0] % 128 == 0) {
             if (!ggml_is_contiguous(cur)) { cur = ggml_cont(ctx0, cur); }
             cur = ggml_turbo_wht(ctx0, cur, 1);  // 1 = inverse
