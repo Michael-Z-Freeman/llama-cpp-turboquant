@@ -32,6 +32,8 @@ Hardware / memory / speed snapshot (current test rig):
 - GPU: `AMD Radeon RX 9060 XT (gfx1200)`, 16,304 MiB VRAM
 - Model: `qwen2.5-coder-14b.gguf`
 - Context window tested: `--ctx-size 65536`
+- Largest stable turbo4 context seen so far: `--ctx-size 129024`
+- Failure observed: segfault at `--ctx-size 130048` and above (current branch/build)
 
 | KV cache mode | Context memory (MiB) | Generation speed (t/s) | Tokens/min |
 |---|---:|---:|---:|
@@ -42,6 +44,9 @@ Hardware / memory / speed snapshot (current test rig):
 Context memory reduction vs f16:
 - turbo3: `-5760 MiB` (~68% less)
 - turbo4: `-5184 MiB` (~61% less)
+
+High-context turbo4 note:
+- At `--ctx-size 129024`, context memory was ~`6426 MiB`, generation ~`27.4 t/s`.
 
 Prompt examples tested so far:
 - `Hello`
