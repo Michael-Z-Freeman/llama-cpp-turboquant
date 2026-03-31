@@ -231,9 +231,8 @@ static __device__ void quantize_f32_turbo3_0_block(const float * __restrict__ x,
 }
 
 // TurboQuant 4-bit: 3-bit PolarQuant + 1-bit QJL sign (block size 128).
-// Input x[] is already WHT-rotated. QJL residual correction is omitted in
-// this first implementation (rnorm=0, signs=0). The PolarQuant term alone
-// gives ~3.5-bit quality which is sufficient to unblock testing.
+// Input x[] is already in the rotated domain.
+// Current CUDA/HIP path stores centroid term only (rnorm/signs reserved).
 static __device__ void quantize_f32_turbo4_0_block(const float * __restrict__ x, block_turbo4_0 * __restrict__ y) {
     // L2 norm of all 128 elements
     float norm_sq = 0.0f;
@@ -244,7 +243,7 @@ static __device__ void quantize_f32_turbo4_0_block(const float * __restrict__ x,
     const float inv_norm = (norm > 1e-10f) ? (1.0f / norm) : 0.0f;
 
     y->norm  = __float2half(norm);
-    y->rnorm = __float2half(0.0f);  // QJL not yet implemented
+    y->rnorm = __float2half(0.0f);
 
     for (int i = 0; i < QK_TURBO4 * 3 / 8; ++i) { y->qs[i]    = 0; }
     for (int i = 0; i < QK_TURBO4 / 8;     ++i) { y->signs[i] = 0; }
@@ -270,7 +269,6 @@ static __device__ void quantize_f32_turbo4_0_block(const float * __restrict__ x,
         if (bit_pos > 5 && byte_idx + 1 < QK_TURBO4 * 3 / 8) {
             y->qs[byte_idx + 1] |= (uint8_t)((idx & 0x7) >> (8 - bit_pos));
         }
-        // signs: QJL not yet implemented
     }
 }
 

@@ -2072,13 +2072,14 @@ ggml_tensor * llm_graph_context::build_attn(
 
         // TurboQuant rotation policy:
         // - turbo3 uses explicit graph-side WHT rotation by default.
-        // - turbo4 defaults to non-WHT domain on HIP/CUDA (stabilized path).
-        // For turbo4 debugging, WHT stages can be enabled independently:
+        // - turbo4 now also defaults to WHT domain for parity with quant/dequant paths.
+        // Turbo4 stages can be toggled independently for debugging:
         //   LLAMA_TURBO4_WHT_STORE_KV=1  (K/V pre-rotation before cpy)
         //   LLAMA_TURBO4_WHT_QUERY=1     (Q pre-rotation)
         //   LLAMA_TURBO4_WHT_OUTPUT=1    (attention output inverse WHT)
         //   LLAMA_TURBO4_WHT_ALL=1       (enables all three)
-        const bool turbo4_wht_all      = env_flag_enabled("LLAMA_TURBO4_WHT_ALL");
+        // Default true keeps Turbo4 in the same transformed domain end-to-end.
+        const bool turbo4_wht_all      = env_flag_enabled("LLAMA_TURBO4_WHT_ALL", true);
         const bool turbo4_wht_store_kv = turbo4_wht_all || env_flag_enabled("LLAMA_TURBO4_WHT_STORE_KV");
         const bool turbo4_wht_query    = turbo4_wht_all || env_flag_enabled("LLAMA_TURBO4_WHT_QUERY");
         const bool turbo4_wht_output   = turbo4_wht_all || env_flag_enabled("LLAMA_TURBO4_WHT_OUTPUT");
@@ -2106,9 +2107,8 @@ ggml_tensor * llm_graph_context::build_attn(
 
     ggml_tensor * q = q_cur;
 
-    // Turbo3 pre-rotate queries: O(d log d) WHT via custom op.
-    // Turbo4 intentionally skips this for now (see rotation policy above).
-    const bool turbo4_wht_all    = env_flag_enabled("LLAMA_TURBO4_WHT_ALL");
+    // Turbo3/Turbo4 pre-rotate queries: O(d log d) WHT via custom op.
+    const bool turbo4_wht_all    = env_flag_enabled("LLAMA_TURBO4_WHT_ALL", true);
     const bool turbo4_wht_query  = turbo4_wht_all || env_flag_enabled("LLAMA_TURBO4_WHT_QUERY");
     const bool turbo4_wht_output = turbo4_wht_all || env_flag_enabled("LLAMA_TURBO4_WHT_OUTPUT");
 

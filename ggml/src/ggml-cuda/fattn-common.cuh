@@ -612,7 +612,7 @@ static __device__ __forceinline__ void dequantize_V_turbo3_0(
 
 // ---------------------------------------------------------------------------
 // TurboQuant 4-bit dequantize V (block size = QK_TURBO4 = 128).
-// QJL correction omitted (same as quantize side). Uses only PolarQuant term.
+// Current CUDA/HIP path uses centroid-only reconstruction.
 // val = CENTROIDS_3BIT[3bit_idx] * norm
 // ---------------------------------------------------------------------------
 template <typename T, int ne>
@@ -698,8 +698,7 @@ static __device__ __forceinline__ float vec_dot_fattn_vec_KQ_turbo3_0(
 }
 
 // ---------------------------------------------------------------------------
-// TurboQuant 4-bit K · Q dot product. Same structure as turbo3_0 but with
-// 3-bit packed indices (QK_TURBO4=128, one block = full head).
+// TurboQuant 4-bit K · Q dot product (centroid-only reconstruction).
 // ---------------------------------------------------------------------------
 template<int D, int nthreads>
 static __device__ __forceinline__ float vec_dot_fattn_vec_KQ_turbo4_0(
