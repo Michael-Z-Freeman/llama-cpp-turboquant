@@ -2,7 +2,11 @@
 
 ## Latest
 
-31st March 2026: Turbo 4 fixed ! A major milestone ! This was after testing where it was found that Turbo 4 was crashing and/or hogging the GPU for over 20 minutes and never responding to prompts. I also added testing script "run_llama_timed_prompt.sh" that was originally intended to time model response but is now more extensive
+31st March 2026: 
+
+1. Turbo 4 fixed ! A major milestone ! This was after testing where it was found that Turbo 4 was crashing and/or hogging the GPU for over 20 minutes and never responding to prompts. I also added testing script "run_llama_timed_prompt.sh" that was originally intended to time model response but is now more extensive.
+
+2. Tool calling confirmed working in OpenCode. Its glitchy though. But this is enormous progress as well. Nothing has been working with tools up until now.
 
 ## 🚀 Rational
 
