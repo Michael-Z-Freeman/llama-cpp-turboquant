@@ -1,5 +1,9 @@
 # Initial working Turbo Quant port from Apple Metal shaders to AMD. See actual prompt tests below but more extensive testing needed !
 
+## Latest
+
+31st March 2026: Turbo 4 fixed ! A major milestone ! This was after testing where it was found that Turbo 4 was crashing and/or hogging the GPU for over 20 minutes and never responding to prompts. I also added testing script "run_llama_timed_prompt.sh" that was originally intended to time model response but is now more extensive
+
 ## 🚀 Rational
 
 After being told that I will never be able to run a local coding model on my 16GB GPU because "10,000 GPU data center will always win" I had a "hold my beer" moment 🤣
