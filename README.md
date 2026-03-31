@@ -2,7 +2,11 @@
 
 ## Latest
 
-31st March 2026: Turbo 4 fixed ! A major milestone ! This was after testing where it was found that Turbo 4 was crashing and/or hogging the GPU for over 20 minutes and never responding to prompts. I also added testing script "run_llama_timed_prompt.sh" that was originally intended to time model response but is now more extensive
+- Turbo4 is producing coherent responses again on this branch under the tested HIP/ROCm settings.
+- Largest stable Turbo4 context seen so far: `--ctx-size 129024`.
+- Current failure threshold observed: segfault around `--ctx-size 130048` and above.
+- Recent milestone commit in this branch: `Improve Turbo4 WHT defaults and add timing script`.
+- 31st March 2026 milestone: Turbo4 was brought back to coherent responses after crashes/hangs observed in prior tests; `run_llama_timed_prompt.sh` was expanded for stronger diagnostics.
 
 ## 🚀 Rational
 
