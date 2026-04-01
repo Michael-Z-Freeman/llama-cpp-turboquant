@@ -513,3 +513,14 @@ cmake --build build -j$(nproc)
 with Qwen2.5-3B-Instruct-Q4_K_M. Output is coherent with expected 3-bit quality degradation.
 **TURBO4_0 currently working** on this branch under tested settings; the earlier garbage-output case
 is currently non-reproducible (see Bug 5 history above).
+
+---
+
+## TODO before upstream-quality PRs
+
+- Re-read `CONTRIBUTING.md` and treat it as mandatory for any code that may later be proposed upstream.
+- Run post-change validation from the project guidance, especially:
+  - `llama-perplexity` to ensure model quality/perplexity is not negatively affected.
+  - `llama-bench` to verify performance does not regress.
+- Follow code style guidance in `CONTRIBUTING.md` (existing patterns, and `clang-format` when needed)
+  before finalizing commits intended for wider review.
