@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LLAMA_SERVER_BIN="${LLAMA_SERVER_BIN:-$SCRIPT_DIR/llama-cpp-turboquant/build/bin/llama-server}"
+LLAMA_SERVER_BIN="${LLAMA_SERVER_BIN:-$SCRIPT_DIR/build/bin/llama-server}"
 MODEL_PATH="${MODEL_PATH:-$HOME/models/Qwen3-14B-Q6_K.gguf}"
 PORT="${PORT:-8081}"
 HOST="127.0.0.1"
